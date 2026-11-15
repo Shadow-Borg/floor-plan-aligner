@@ -18,3 +18,12 @@ On iPhone, use Share → Add to Home Screen, and save a project file before leav
 ## Source
 
 `index.html` is built from the files in `src/` with `node src/build.js`. Logic tests: `node src/test.js <sample.dxf>`.
+
+## Older versions
+
+Kept as they were, in case you want to compare or go back:
+
+- First version uploaded here: https://shadow-borg.github.io/floor-plan-aligner/old/v1-first.html
+- Last version before the rebuild around wall objects: https://shadow-borg.github.io/floor-plan-aligner/old/v1-last.html
+
+Project files saved by the current version do not open in these older ones.
