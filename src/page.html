@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Site Plan">
+<title>Site Plan Adjuster</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#1b1f24;--mute:#5d6673;--line:#d5d9df;--acc:#0b6bcb;--ok:#1a7f37;--warn:#b45309;--bad:#c62828;
+  --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--ink);font:16px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+input,select,textarea{-webkit-user-select:text;user-select:text}
+header{position:fixed;top:0;left:0;right:0;height:calc(52px + var(--st));padding:var(--st) calc(8px + var(--sr)) 0 calc(8px + var(--sl));display:flex;align-items:center;gap:6px;background:var(--card);border-bottom:1px solid var(--line);z-index:5}
+header .ttl{flex:1;min-width:0;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .ttl small{display:block;font-weight:400;color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;min-height:44px;padding:0 12px;cursor:pointer;touch-action:manipulation}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.4}
+#bSave{font-size:13px;min-height:44px;padding:0 10px;white-space:nowrap}
+#bSave.dirty{border-color:var(--warn);color:var(--warn)}
+#bar{position:fixed;top:calc(52px + var(--st));left:0;right:0;min-height:44px;padding:4px calc(8px + var(--sr)) 4px calc(8px + var(--sl));display:none;align-items:center;gap:8px;background:#eef3fa;border-bottom:1px solid var(--line);z-index:4;font-size:13px}
+#bar span{flex:1;min-width:0}
+#bar button{min-height:36px;font-size:13px;padding:0 10px}
+#stage{position:fixed;left:0;right:0;top:calc(52px + var(--st));bottom:calc(60px + var(--sb));background:#fff}
+#stage.withbar{top:calc(96px + var(--st))}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#tools{position:fixed;left:0;right:0;bottom:0;height:calc(60px + var(--sb));padding:6px calc(6px + var(--sr)) calc(6px + var(--sb)) calc(6px + var(--sl));display:none;gap:6px;background:var(--card);border-top:1px solid var(--line);z-index:5}
+#tools button{flex:1;min-height:48px;padding:0 4px;font-size:14px}
+#tools button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+#empty{position:fixed;inset:calc(52px + var(--st)) 0 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:var(--bg);z-index:6}
+#empty p{max-width:340px;margin:0;color:var(--mute)}
+.sheet{position:fixed;left:calc(8px + var(--sl));right:calc(8px + var(--sr));max-width:520px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:14px;z-index:10;overflow:auto;display:none}
+.sheet.top{top:calc(60px + var(--st));max-height:calc(100% - 140px - var(--st) - var(--sb))}
+.sheet.bottom{bottom:calc(68px + var(--sb));max-height:46%}
+@media(min-width:900px){.sheet.bottom{left:auto;right:calc(12px + var(--sr));top:calc(110px + var(--st));bottom:auto;width:360px;max-height:calc(100% - 200px);margin:0}}
+.sheet h3{margin:0 0 8px;font-size:16px}
+.sheet .hint{color:var(--mute);font-size:13px;margin:8px 0 0}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+.row.tight{flex-wrap:nowrap;gap:4px}.row.tight button{padding:0 4px;font-size:14px}
+.big{display:block;width:100%;text-align:left;padding:10px 12px;font-size:20px;font-weight:600;margin-bottom:8px}
+.big small{display:block;font-size:12px;font-weight:400;color:var(--mute)}
+label.f{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input[type=text],select{width:100%;font:inherit;min-height:46px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input.num{font-size:24px;font-weight:600}
+.nudge{display:flex;gap:6px;align-items:center}.nudge button{flex:0 0 48px;font-size:22px;font-weight:600}.nudge input{flex:1;text-align:center;font-size:18px;font-weight:600}
+.kv{display:flex;justify-content:space-between;font-size:14px;padding:2px 0}.kv b{font-weight:600}
+.chip{display:inline-block;padding:10px 14px;margin:0 6px 6px 0;border:1px solid var(--line);border-radius:22px;font-size:14px;cursor:pointer}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:right;padding:11px 4px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;color:var(--mute);font-weight:500}
+tr.c td{color:var(--bad)}
+.lay{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px}.lay span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lay select{width:130px;min-height:40px}
+.lay input[type=checkbox]{width:24px;height:24px;flex:0 0 24px}
+.menu button{display:block;width:100%;text-align:left;margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:calc(76px + var(--sb));transform:translateX(-50%);background:#1b1f24;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;max-width:90vw;z-index:30;display:none;text-align:center;pointer-events:none}
+#ask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
+#ask div.box{background:var(--card);border-radius:14px;padding:18px;max-width:380px;width:100%}
+#ask p{margin:0 0 14px}
+#print{display:none}
+#print h1{font-size:20px;margin:0 0 4px}#print h2{font-size:15px;margin:14px 0 6px}#print .meta{font-size:12px;color:#444;margin:4px 0}#print svg.plan{display:block;margin:8px auto}#print table{font-size:12px}#print td,#print th{padding:4px 6px;border:1px solid #999}#print li{font-size:12px;margin-bottom:4px}
+@media print{html,body{height:auto;overflow:visible;background:#fff}header,#bar,#stage,#tools,#empty,.sheet,#toast,#ask{display:none!important}#print{display:block;padding:0;color:#000}}
+</style>
+</head>
+<body>
+<header>
+  <div class="ttl"><span id="pname">Site Plan Adjuster</span><small id="pinfo">No plan open</small></div>
+  <button id="bSave" style="display:none">Save</button>
+  <button id="bList" style="display:none">List</button>
+  <button id="bMenu">Menu</button>
+</header>
+<div id="bar"><span id="barText"></span><button id="barBtn"></button></div>
+<div id="stage"><canvas id="cv"></canvas></div>
+<div id="tools">
+  <button id="tEdit">Edit</button><button id="tMeasure">Measure</button><button id="tAdd">Add</button><button id="tUndo">Undo</button><button id="tRedo">Redo</button>
+</div>
+<div id="empty">
+  <h2 style="margin:0">Site Plan Adjuster</h2>
+  <p>Open a DXF plan, check that the walls and openings are right, then type the sizes you measure on site. The plan adjusts itself.</p>
+  <button class="pri" id="bOpen0">Open DXF or project file</button>
+  <p style="font-size:13px">In AutoCAD use Save As &rarr; DXF to get a DXF from your DWG. On iPhone, add this page to the Home Screen so your work is kept.</p>
+</div>
+<div class="sheet" id="sheet"></div>
+<div id="toast"></div>
+<div id="ask"><div class="box"><p id="askMsg"></p><div class="row"><button id="askNo">Cancel</button><button class="pri" id="askYes">OK</button></div></div></div>
+<div id="print"></div>
+<input type="file" id="file" hidden>
+<script>
+'use strict';
+/*CORE*/
+/*OBJECTS*/
+/*UI*/
+</script>
+</body>
+</html>
