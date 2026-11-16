@@ -5,7 +5,7 @@ if(typeof document!=='undefined')(function(){
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d'),sheet=$('sheet');
 let M=null,DX=null,roles=null,V={cx:0,cy:0,k:1},VW=null,W=0,Hh=0,dpr=1;
-let backCy=null,mode='edit',tool=null,sel=null,cand=[],hits=[],handles=[],hist=[],redoS=[],pending=false,saveT=0,fileDirty=false,GEO=null,RMS=null,loupe=null,boxR=null,snapHint=null,nhits=[],vb=null;
+let backCy=null,mode='edit',tool=null,sel=null,cand=[],hits=[],handles=[],hist=[],redoS=[],pending=false,saveT=0,fileDirty=false,GEO=null,RMS=null,loupe=null,boxR=null,refocus=false,snapHint=null,nhits=[],vb=null;
 const LAY={walls:1,opens:1,stairs:1,fit:1,furn:1,text:1,dims:1,notes:1,under:0};
 const NCOL={note:'#0b6bcb',defect:'#c62828',check:'#b45309'};
 const esc=escH;
@@ -17,7 +17,8 @@ function showSheet(html,pos){if(backCy!=null){V.cy=backCy;backCy=null;}sheet.cla
 function hideSheet(){sheet.style.display='none';sheet.innerHTML='';if(backCy!=null){V.cy=backCy;backCy=null;draw();}}
 function askBox(msg,yes,cb){$('askMsg').textContent=msg;$('askYes').textContent=yes||'OK';$('ask').style.display='flex';
   $('askYes').onclick=()=>{$('ask').style.display='none';cb();};$('askNo').onclick=()=>{$('ask').style.display='none';};}
-const geo=()=>{if(!GEO){const G=massGrid(M);GEO={G,edges:outline(G),poche:pocheRects(G),win:winLines(M)};}return GEO;};
+const geo=()=>{if(!GEO){const G=massGrid(M);const fl=floorRects(rms()),fb=[Infinity,Infinity,-Infinity,-Infinity];for(const q of fl){fb[0]=Math.min(fb[0],q[0]);fb[1]=Math.min(fb[1],q[1]);fb[2]=Math.max(fb[2],q[2]);fb[3]=Math.max(fb[3],q[3]);}
+  GEO={G,edges:outline(G),poche:pocheRects(G),win:winLines(M),fl,fb,sw:doorSwings(M,rms())};}return GEO;};
 const rms=()=>RMS||(RMS=rooms(M));
 
 /* ---- storage ---- */
@@ -52,22 +53,33 @@ const fillR=(r)=>ctx.fillRect(sx(r[0]),sy(r[3]),(r[2]-r[0])*VW.k,(r[3]-r[1])*VW.
 const strokeR=(r)=>ctx.strokeRect(sx(r[0]),sy(r[3]),(r[2]-r[0])*VW.k,(r[3]-r[1])*VW.k);
 const lineShown=c=>c==='src'?false:c==='interior'?!!LAY.fit:c==='stair'?!!LAY.stairs:true;
 function scene(){                              // the plan itself, drawn with the current view (also used by the loupe)
-  const P=M.P,G=geo();
+  const P=M.P,G=geo(),PR=outOpt(M).style==='pres';
+  if(PR){
+    ctx.fillStyle='#e4dad2';for(const q of G.fl)fillR(q);for(const o of M.opens)if(o.type!=='window')fillR(rectOf(M,o));
+    const t=0.6/UNIT_M[M.unit];
+    if(t*VW.k>=5&&G.fl.length){
+      ctx.save();ctx.beginPath();for(const q of G.fl)ctx.rect(sx(q[0]),sy(q[3]),(q[2]-q[0])*VW.k,(q[3]-q[1])*VW.k);ctx.clip();
+      ctx.strokeStyle='#d2c5bb';ctx.lineWidth=1;ctx.beginPath();const b=G.fb;
+      for(let x=Math.ceil(b[0]/t)*t;x<=b[2];x+=t){ctx.moveTo(sx(x),sy(b[1]));ctx.lineTo(sx(x),sy(b[3]));}
+      for(let y=Math.ceil(b[1]/t)*t;y<=b[3];y+=t){ctx.moveTo(sx(b[0]),sy(y));ctx.lineTo(sx(b[2]),sy(y));}
+      ctx.stroke();ctx.restore();
+    }
+  }
   if(LAY.under){
     ctx.strokeStyle='#8fbdf0';ctx.lineWidth=1;ctx.beginPath();
     for(const s of M.segs){if(s[3])continue;ctx.moveTo(sx(M.P0[2*s[0]]),sy(M.P0[2*s[0]+1]));ctx.lineTo(sx(M.P0[2*s[1]]),sy(M.P0[2*s[1]+1]));}
     ctx.stroke();
   }
-  if(LAY.stairs){ctx.fillStyle=STAIR_TINT;for(const f of M.stairs)fillR(flightBox(M,f));}
-  if(LAY.walls){ctx.fillStyle='#cfd4db';for(const r of G.poche)fillR(r);}
-  if(LAY.opens)for(const o of M.opens){ctx.fillStyle=o.type==='window'?OPN_TINT.Window:OPN_TINT.Door;fillR(rectOf(M,o));}
+  if(LAY.stairs){ctx.fillStyle=PR?'#f4eee8':STAIR_TINT;for(const f of M.stairs)fillR(flightBox(M,f));}
+  if(LAY.walls){ctx.fillStyle=PR?'#5a3d33':'#cfd4db';for(const r of G.poche)fillR(r);}
+  if(LAY.opens)for(const o of M.opens){ctx.fillStyle=PR?(o.type==='window'?'#fbf8f4':'#e4dad2'):o.type==='window'?OPN_TINT.Window:OPN_TINT.Door;fillR(rectOf(M,o));}
   if(mode==='edit')for(const s of M.sugs){
     const r=rectOf(M,s);ctx.fillStyle='rgba(245,158,11,.22)';fillR(r);
     ctx.strokeStyle='#b45309';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);strokeR(r);ctx.setLineDash([]);
     ctx.fillStyle='#b45309';ctx.font='700 14px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',sx((r[0]+r[2])/2),sy((r[1]+r[3])/2));
   }
   if(LAY.furn){
-    ctx.strokeStyle='#a9b0ba';ctx.lineWidth=1;ctx.beginPath();
+    ctx.strokeStyle=PR?'#9a8176':'#a9b0ba';ctx.lineWidth=1;ctx.beginPath();
     for(const g of M.decor){
       const cx=sx(g.cx+g.dx),cy=sy(g.cy+g.dy),hw=g.hw*VW.k,hh=g.hh*VW.k;
       if(cx+hw<0||cx-hw>W||cy+hh<0||cy-hh>Hh)continue;
@@ -77,14 +89,14 @@ function scene(){                              // the plan itself, drawn with th
   }
   if(LAY.furn)for(const sm of M.syms)for(const q of symPaths(M,sm)){
     ctx.beginPath();for(let i=0;i<q.pts.length;i+=2){const x=sx(q.pts[i]),y=sy(q.pts[i+1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
-    if(q.mode!=='l')ctx.closePath();ctx.lineWidth=1;ctx.strokeStyle='#6b7480';
-    if(q.mode==='f'){ctx.fillStyle='#fff';ctx.fill();}else if(q.mode==='s'){ctx.fillStyle='rgba(110,140,100,.26)';ctx.fill();}else if(q.mode==='d'){ctx.fillStyle='#39424e';ctx.fill();}
+    if(q.mode!=='l')ctx.closePath();ctx.lineWidth=1;ctx.strokeStyle=PR?'#8a6f63':'#6b7480';
+    if(q.mode==='f'){ctx.fillStyle='#fff';ctx.fill();}else if(q.mode==='s'){ctx.fillStyle='rgba(110,140,100,.26)';ctx.fill();}else if(q.mode==='d'){ctx.fillStyle=PR?'#6b4a3e':'#39424e';ctx.fill();}
     ctx.stroke();
   }
   ctx.lineJoin='round';
   for(const c of ['interior','stair','window','line','wall']){
     if(!lineShown(c))continue;
-    ctx.strokeStyle=CLS[c].col;ctx.lineWidth=Math.max(0.8,CLS[c].lw*4);ctx.beginPath();
+    ctx.strokeStyle=PR?(c==='interior'?'#b39c90':'#6b4a3e'):CLS[c].col;ctx.lineWidth=PR?Math.max(0.8,Math.min(CLS[c].lw,0.25)*4):Math.max(0.8,CLS[c].lw*4);ctx.beginPath();
     M.segs.forEach((s,i)=>{
       if(s[3]||M.cls[i]!==c)return;
       const x1=P[2*s[0]],y1=P[2*s[0]+1],x2=P[2*s[1]],y2=P[2*s[1]+1];
@@ -99,16 +111,17 @@ function scene(){                              // the plan itself, drawn with th
     ctx.stroke();
   }
   if(LAY.walls){
-    if(LAY.opens){ctx.strokeStyle='#0a7f9c';ctx.lineWidth=1;ctx.beginPath();for(const g of G.win){ctx.moveTo(sx(g[0]),sy(g[1]));ctx.lineTo(sx(g[2]),sy(g[3]));}ctx.stroke();}
-    ctx.strokeStyle='#111';ctx.lineWidth=2.2;ctx.lineCap='square';ctx.beginPath();
+    if(LAY.opens){ctx.strokeStyle=PR?'#4a3129':'#0a7f9c';ctx.lineWidth=1;ctx.beginPath();for(const g of G.win){ctx.moveTo(sx(g[0]),sy(g[1]));ctx.lineTo(sx(g[2]),sy(g[3]));}ctx.stroke();}
+    ctx.strokeStyle=PR?'#4a3129':'#111';ctx.lineWidth=PR?1.4:2.2;ctx.lineCap='square';ctx.beginPath();
     for(const g of G.edges){ctx.moveTo(sx(g[0]),sy(g[1]));ctx.lineTo(sx(g[2]),sy(g[3]));}
     ctx.stroke();ctx.lineCap='butt';
+    if(LAY.opens&&G.sw.length){ctx.strokeStyle=PR?'#6b4a3e':'#5d6673';ctx.lineWidth=1;ctx.beginPath();for(const q of G.sw)for(const p of [q.leaf,q.arc])for(let i=0;i<p.length;i+=2){const x=sx(p[i]),y=sy(p[i+1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
     if(mode==='edit'){ctx.strokeStyle='rgba(90,100,115,.55)';ctx.lineWidth=0.8;ctx.setLineDash([3,3]);for(const w of M.walls)strokeR(rectOf(M,w));ctx.setLineDash([]);}
   }
   if(LAY.text)for(const t of M.texts){
     const px=textH(M,t)*VW.k;if(px<5)continue;
     ctx.save();ctx.translate(sx(P[2*t.p]),sy(P[2*t.p+1]));if(t.rot)ctx.rotate(-t.rot*Math.PI/180);
-    ctx.font=Math.min(px,60)+'px ISOCPEUR,"Arial Narrow",Arial,sans-serif';ctx.fillStyle='#39424e';
+    ctx.font=Math.min(px,60)+'px ISOCPEUR,"Arial Narrow",Arial,sans-serif';ctx.fillStyle=PR?'#6b4a3e':'#39424e';
     ctx.textAlign=t.ha;ctx.textBaseline=t.va;ctx.fillText(t.s,0,0);ctx.restore();
   }
 }
@@ -132,6 +145,7 @@ function render(){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,Hh);hits=[];handles=[];nhits=[];
   if(!M)return;
   VW={cx:V.cx,cy:V.cy,k:V.k,ox:W/2,oy:Hh/2};
+  const BG=outOpt(M).style==='pres'?'#efeae4':'#fff';ctx.fillStyle=BG;ctx.fillRect(0,0,W,Hh);
   scene();
   const P=M.P;
   if(sel){
@@ -182,7 +196,7 @@ function render(){
   if(boxR){ctx.strokeStyle='#0b6bcb';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.strokeRect(boxR[0],boxR[1],boxR[2]-boxR[0],boxR[3]-boxR[1]);ctx.setLineDash([]);}
   if(loupe){                                   // magnifier above the finger with a crosshair on the exact point
     const R=58,lx=Math.max(R+4,Math.min(W-R-4,loupe.x)),ly=loupe.y-R-70<4?loupe.y+R+70:loupe.y-R-70,w=s2w(loupe.cx,loupe.cy);
-    ctx.save();ctx.beginPath();ctx.arc(lx,ly,R,0,7);ctx.clip();ctx.fillStyle='#fff';ctx.fillRect(lx-R,ly-R,2*R,2*R);
+    ctx.save();ctx.beginPath();ctx.arc(lx,ly,R,0,7);ctx.clip();ctx.fillStyle=BG;ctx.fillRect(lx-R,ly-R,2*R,2*R);
     VW={cx:w[0],cy:w[1],k:V.k*2.5,ox:lx,oy:ly};scene();VW={cx:V.cx,cy:V.cy,k:V.k,ox:W/2,oy:Hh/2};
     ctx.strokeStyle='#c62828';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lx-14,ly);ctx.lineTo(lx+14,ly);ctx.moveTo(lx,ly-14);ctx.lineTo(lx,ly+14);ctx.stroke();
     ctx.restore();
@@ -447,7 +461,7 @@ function openNote(nt,w){
   let h='<h3>'+(nt?'Note '+(M.notes.indexOf(nt)+1):'New note')+'</h3><div class="row" id="nKind">'+[['note','Note'],['defect','Defect'],['check','To check']].map(q=>'<button data-k="'+q[0]+'">'+q[1]+'</button>').join('')+'</div>';
   h+='<label class="f">What to record about this spot</label><textarea id="nTxt" rows="3">'+(nt?esc(nt.s):'')+'</textarea>';
   h+='<div class="row" style="margin-top:12px"><button id="nCancel">Cancel</button>'+(nt?'<button id="nDel" class="danger">Delete</button>':'')+'<button class="pri" id="nOk">Save</button></div>';
-  showSheet(h,'top');reveal(nt?M.P[2*nt.p+1]:w[1]);draw();
+  showSheet(h,'bottom');reveal(nt?M.P[2*nt.p+1]:w[1]);draw();
   const mark=()=>sheet.querySelectorAll('[data-k]').forEach(b=>b.className=b.dataset.k===kind?'pri':'');
   sheet.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{kind=b.dataset.k;mark();});mark();
   if(!nt)setTimeout(()=>$('nTxt').focus(),50);
@@ -460,8 +474,9 @@ function openNote(nt,w){
   };
 }
 function openSyms(){
-  let h='<h3>Place a symbol</h3><div>'+Object.keys(SYM).map(k=>'<span class="chip" data-s="'+k+'">'+SYM[k].n+'</span>').join('')+'</div><p class="hint">Pick one, then tap the plan where it goes. Symbols appear in the drawing outputs.</p><div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
+  let h='<h3>Place a symbol</h3><div>'+Object.keys(SYM).map(k=>'<span class="chip" data-s="'+k+'">'+SYM[k].n+'</span>').join('')+'</div><p class="hint">Pick one, then tap the plan where it goes. Symbols appear in the drawing outputs.</p><button id="yAuto" style="width:100%;margin-top:8px">Furnish the rooms automatically</button><div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
   showSheet(h,'bottom');$('yClose').onclick=hideSheet;
+  $('yAuto').onclick=()=>{pushHist();const n=autoFurnish(M);if(!n){hist.pop();toast('Nothing to place: rooms need names such as BEDROOM, LIVING, DINING, TOILET, KITCHEN and must be closed by walls',5000);return;}hideSheet();changed();toast(n+' symbols placed from the room names. Tap one to move, turn or delete it.',4500);};
   sheet.querySelectorAll('[data-s]').forEach(c=>c.onclick=()=>{mode='edit';setTool({t:'sym',type:c.dataset.s});});
 }
 function openAdd(){
@@ -477,20 +492,46 @@ function openAdd(){
 
 /* ---- Measure mode ---- */
 const findDim=c=>M.dims.find(d=>d.ax===c.ax&&d.a===c.a&&d.b===c.b&&(d.kind||null)===(c.kind||null));
-function candSheet(title,extra){
+function commitDim(d,isNew,rv,fin,how,after){
+  const name=dimName(M,d,rms()),pk=d.pk!=null?d.pk:(name==='Wall thickness'?-2:name==='Wall length'?0:2),cur=dimVal(M,d,M.P),v=fin?rv+pk*M.pl:rv;
+  if(!(rv>0&&v>0)){toast('Enter the measured size');return;}
+  const go=()=>{
+    pushHist();
+    if(isNew){
+      M.P.push(d.ox,d.oy);M.P0.push(d.ox,d.oy);
+      d={id:M.nid++,ax:d.ax,a:d.a,b:d.b,p:M.P.length/2-1,name,site:null,how:null,kind:d.kind||null,oid:d.oid,tr:d.tr};M.dims.push(d);
+    }
+    const c=setDimension(M,d,v,how);
+    d.pk=pk;d.fin=fin;d.raw=rv;
+    cand=[];hideSheet();changed();
+    const nc=conflicts(M,M.P,null);
+    const what=d.how==='none'?'Recorded as a check, plan not changed':!c?'Recorded, no change needed':c.label+': '+fmt(M,Math.abs(c.op.move))+' '+U();
+    toast(what+(nc?' · '+nc+' conflict'+(nc>1?'s':'')+' (red)':''),nc?4500:2600);
+    if(after)after();
+  };
+  if(how!=='none'&&Math.abs(v-cur)>0.1*cur)askBox('This changes the size by '+fmt(M,Math.abs(v-cur))+' '+U()+' (from '+fmt(M,cur)+' to '+fmt(M,v)+'). Apply?','Apply',go);else go();
+}
+/* the one card of Measure: every size found here with its own box to type the site value into */
+function candSheet(title,extra,again){
   let h='<h3>'+esc(title)+'</h3>';
   cand.forEach((c,i)=>{
     const ex=findDim(c),cur=dimVal(M,c,M.P),des=dimVal(M,c,M.P0);
-    h+='<button class="big" data-i="'+i+'">'+(c.ax==='x'?'↔ ':'↕ ')+fmt(M,cur)+' '+U()+
-      '<small>'+esc(dimName(M,c,rms()))+(Math.abs(cur-des)>epsOf(M)/2?' · drawing '+fmt(M,des):'')+(ex?' · already measured':'')+'</small></button>';
+    h+='<label class="f">'+esc(dimName(M,c,rms()))+' ('+U()+')'+(Math.abs(cur-des)>epsOf(M)/2?' · drawing '+fmt(M,des):'')+(ex?' · measured':'')+'</label>'+
+      '<div class="row mrow"><input class="num" type="text" inputmode="decimal" data-i="'+i+'" value="'+(ex?fmt(M,ex.fin?ex.raw:ex.site):'')+'" placeholder="'+fmt(M,cur)+'"><button class="pri" data-ok="'+i+'">Set</button><button data-more="'+i+'" aria-label="Options">⋯</button></div>';
   });
-  h+=(extra||'')+'<p class="hint">Tap a size to enter what you measured on site.</p>';
+  h+='<div style="margin-top:10px">'+(extra||'')+'</div><p class="hint">Type the size measured on '+(M.fin?'finished (plastered)':'bare')+' walls and press Set. ⋯ has the options: finished or bare, what moves, remove.</p><div class="row" style="margin-top:8px"><button id="cClose">Close</button></div>';
   showSheet(h,'bottom');
-  sheet.querySelectorAll('.big').forEach(b=>b.onclick=()=>{const c=cand[+b.dataset.i],ex=findDim(c);cand=[c];draw();openEdit(ex||c,!ex);});
+  const set=i=>{const c=cand[i],ex=findDim(c),inp=sheet.querySelector('input[data-i="'+i+'"]');commitDim(ex||c,!ex,num(inp.value),ex?!!ex.fin:!!M.fin,ex&&ex.how==='none'?'none':'auto',again);};
+  sheet.querySelectorAll('[data-ok]').forEach(b=>b.onclick=()=>set(+b.dataset.ok));
+  sheet.querySelectorAll('input[data-i]').forEach(inp=>inp.onkeydown=ev=>{if(ev.key==='Enter')set(+inp.dataset.i);});
+  sheet.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{const c=cand[+b.dataset.more],ex=findDim(c);cand=[c];draw();openEdit(ex||c,!ex);});
+  $('cClose').onclick=()=>{cand=[];hideSheet();draw();};
   if(cand.length){const g=dimGeom(M,cand[0]);reveal(Math.min(g[1],g[3]));draw();}
+  if(refocus){refocus=false;const e=[...sheet.querySelectorAll('input[data-i]')].find(q=>!q.value);if(e)setTimeout(()=>e.focus(),60);}
 }
-function measureTap(px,py,room){
-  for(const r of hits)if(px>=r.x-8&&px<=r.x+r.w+8&&py>=r.y-8&&py<=r.y+r.h+8){cand=[];if(r.g)openDiag(r.g,false);else openEdit(r.d,false);draw();return;}
+function measureAt(x,y,room){refocus=true;measureTap((x-V.cx)*V.k+W/2,Hh/2-(y-V.cy)*V.k,room,true);}
+function measureTap(px,py,room,quiet){
+  if(!quiet)for(const r of hits)if(px>=r.x-8&&px<=r.x+r.w+8&&py>=r.y-8&&py<=r.y+r.h+8){cand=[];if(r.g)openDiag(r.g,false);else openEdit(r.d,false);draw();return;}
   const w=s2w(px,py),rad=10/V.k;
   if(!room){
     const o=M.opens.map(q=>({q,d:distRect(rectOf(M,q),w[0],w[1])})).filter(z=>z.d<=rad).sort((a,b)=>a.d-b.d)[0];
@@ -498,21 +539,21 @@ function measureTap(px,py,room){
       const r=rectOf(M,o.q),k=o.q.dir==='x'?0:1;let side=(k?w[0]:w[1])<(r[1-k]+r[3-k])/2?-1:1;
       if(openDims(M,o.q,-side).length>openDims(M,o.q,side).length)side=-side;      // prefer the room side, where corner distances exist
       const show=()=>{cand=openDims(M,o.q,side);draw();
-        candSheet(cap(o.q.type)+' '+(openTags(M).tag.get(o.q.id)||''),'<button id="pHt" style="width:100%;margin-bottom:8px">Sill and height on site ('+fmt(M,oSillS(M,o.q))+' / '+fmt(M,oHtS(M,o.q))+')</button><div class="row"><button id="pSide">Other side</button><button id="pRoom">Measure room</button></div>');
+        candSheet(cap(o.q.type)+' '+(openTags(M).tag.get(o.q.id)||''),'<button id="pHt" style="width:100%;margin-bottom:8px">Sill and height on site ('+fmt(M,oSillS(M,o.q))+' / '+fmt(M,oHtS(M,o.q))+')</button><div class="row"><button id="pSide">Other side</button><button id="pRoom">Measure room</button></div>',()=>{refocus=true;show();});
         $('pHt').onclick=()=>openHeights(o.q);$('pSide').onclick=()=>{side=-side;show();};$('pRoom').onclick=()=>measureTap(px,py,true);};
       show();return;
     }
     const c=M.walls.find(q=>q.kind==='col'&&distRect(rectOf(M,q),w[0],w[1])===0);
-    if(c){cand=colDims(M,c);draw();candSheet('Column','<button id="pRoom" style="width:100%">Measure as a room instead</button>');$('pRoom').onclick=()=>measureTap(px,py,true);return;}
+    if(c){const sc=()=>{cand=colDims(M,c);draw();candSheet('Column','<button id="pRoom" style="width:100%">Measure as a room instead</button>',()=>{refocus=true;sc();});$('pRoom').onclick=()=>measureTap(px,py,true);};sc();return;}
     const fl=LAY.stairs?stairAt(M,w[0],w[1]):null;
-    if(fl){cand=stairDims(M,fl);draw();candSheet('Stair, '+(fl.tr.length-1)+' treads','<button id="pRoom" style="width:100%">Measure the room instead</button>');$('pRoom').onclick=()=>measureTap(px,py,true);return;}
+    if(fl){const ss=()=>{cand=stairDims(M,fl);draw();candSheet('Stair, '+(fl.tr.length-1)+' treads','<button id="pRoom" style="width:100%">Measure the room instead</button>',()=>{refocus=true;ss();});$('pRoom').onclick=()=>measureTap(px,py,true);};ss();return;}
   }
   cand=probe(M,w[0],w[1]);draw();
   if(!cand.length){hideSheet();toast('No walls found on both sides here');return;}
   const cx=cand.find(c=>c.ax==='x'),cy=cand.find(c=>c.ax==='y'),p=M.fin?M.pl:0,rm=roomAt(rms(),w[0],w[1]);
   const same=cx&&wallOfRef(M,cx.a)&&wallOfRef(M,cx.a)===wallOfRef(M,cx.b);
   const title=same?'Wall':rm&&rm.closed?(roomName(rm,w[0],w[1])||'Room')+' · '+(rm.area*UNIT_M[M.unit]*UNIT_M[M.unit]).toFixed(2)+' m²':'Measured here';
-  candSheet(title,cx&&cy&&!same?'<button id="pDiag" style="width:100%">Check diagonals (should be '+fmt(M,Math.hypot(dimVal(M,cx,M.P)-2*p,dimVal(M,cy,M.P)-2*p))+' '+U()+')</button>':'');
+  candSheet(title,cx&&cy&&!same?'<button id="pDiag" style="width:100%">Check diagonals (should be '+fmt(M,Math.hypot(dimVal(M,cx,M.P)-2*p,dimVal(M,cy,M.P)-2*p))+' '+U()+')</button>':'',()=>measureAt(w[0],w[1],room));
   if(cx&&cy&&!same)$('pDiag').onclick=()=>{
     const ex=M.diags.find(g=>g.xa===cx.a&&g.xb===cx.b&&g.ya===cy.a&&g.yb===cy.b);
     cand=[];draw();openDiag(ex||{xa:cx.a,xb:cx.b,ya:cy.a,yb:cy.b,name:roomName(rm,w[0],w[1])||nearestRoom(M,w[0],w[1])||'Space',d1:null,d2:null,fin:M.fin},!ex);
@@ -526,7 +567,7 @@ function openHeights(o){
   h+='<label class="f">Opening height on site ('+U()+')</label><input class="num" type="text" inputmode="decimal" id="hH" value="'+(o.sH!=null?fmt(M,o.sH):'')+'" placeholder="'+fmt(M,oHt(M,o))+'">';
   h+='<p class="hint">Leave a box empty to keep the drawing value. The lintel level is sill + height.</p>';
   h+='<div class="row" style="margin-top:12px"><button id="hCancel">Cancel</button><button class="pri" id="hOk">Save</button></div>';
-  showSheet(h,'top');{const r=rectOf(M,o);reveal((r[1]+r[3])/2);draw();}
+  showSheet(h,'bottom');{const r=rectOf(M,o);reveal((r[1]+r[3])/2);draw();}
   $('hCancel').onclick=hideSheet;
   $('hOk').onclick=()=>{
     const a=$('hS').value.trim(),b=$('hH').value.trim(),va=num(a),vb2=num(b);
@@ -544,31 +585,14 @@ function openEdit(d,isNew){
   h+='<label class="f">What moves</label><select id="eMode"><option value="auto">Auto (fewest conflicts)</option>'+
     candidates(M,d,0).map(c=>'<option value="'+c.key+'">'+c.label+'</option>').join('')+'<option value="none">Record only as a check, move nothing</option></select>';
   h+='<div class="row" style="margin-top:12px"><button id="eCancel">Cancel</button>'+(isNew?'':'<button id="eDel" class="danger">Remove</button>')+'<button class="pri" id="eOk">Apply</button></div>';
-  showSheet(h,'top');
+  showSheet(h,'bottom');
   {const g=dimGeom(M,d);reveal((g[1]+g[3])/2);draw();}
   const inp=$('eVal');setTimeout(()=>{inp.focus();inp.select();},50);
   const read=()=>{const v=num(inp.value),fin=$('eFin').value==='1';return {v,fin,s:fin?v+pk*M.pl:v};};
   const hint=()=>{const r=read();$('eBare').textContent=r.fin&&pk&&r.v>0?'Bare size used on the plan: '+fmt(M,r.s)+' '+U()+' (plaster '+fmt(M,M.pl)+' per face)':r.fin&&!pk?'Plaster does not change this distance.':'';};
   inp.oninput=hint;$('eFin').onchange=hint;hint();
   $('eSame').onclick=()=>{const fin=$('eFin').value==='1';inp.value=fmt(M,fin?cur-pk*M.pl:cur);hint();};
-  const go=()=>{
-    const r=read(),v=r.s;pushHist();
-    if(isNew){
-      M.P.push(d.ox,d.oy);M.P0.push(d.ox,d.oy);
-      d={id:M.nid++,ax:d.ax,a:d.a,b:d.b,p:M.P.length/2-1,name,site:null,how:null,kind:d.kind||null,oid:d.oid,tr:d.tr};M.dims.push(d);
-    }
-    const c=setDimension(M,d,v,$('eMode').value);
-    d.pk=pk;d.fin=r.fin;d.raw=r.v;
-    cand=[];hideSheet();changed();
-    const nc=conflicts(M,M.P,null);
-    const what=d.how==='none'?'Recorded as a check, plan not changed':!c?'Recorded, no change needed':c.label+': '+fmt(M,Math.abs(c.op.move))+' '+U();
-    toast(what+(nc?' · '+nc+' conflict'+(nc>1?'s':'')+' (red)':''),nc?4500:2600);
-  };
-  const apply=()=>{
-    const r=read(),v=r.s;
-    if(!(r.v>0&&v>0)){toast('Enter the measured size');return;}
-    if($('eMode').value!=='none'&&Math.abs(v-cur)>0.1*cur)askBox('This changes the size by '+fmt(M,Math.abs(v-cur))+' '+U()+' (from '+fmt(M,cur)+' to '+fmt(M,v)+'). Apply?','Apply',go);else go();
-  };
+  const apply=()=>{const q=read();commitDim(d,isNew,q.v,q.fin,$('eMode').value);};
   $('eOk').onclick=apply;
   inp.onkeydown=ev=>{if(ev.key==='Enter')apply();};
   $('eCancel').onclick=()=>{cand=[];hideSheet();draw();};
@@ -583,7 +607,7 @@ function openDiag(g,isNew){
   h+='<label class="f">Diagonal 2: top-left to bottom-right ('+U()+')</label><input class="num" type="text" inputmode="decimal" id="g2" value="'+(g.d2!=null?fmt(M,g.d2):'')+'" placeholder="'+fmt(M,exp)+'">';
   h+='<p class="hint">Measure the room sizes first. This is a check only; the plan stays square.'+(g.fin?' Diagonals are taken between finished (plastered) corners.':'')+'</p>';
   h+='<div class="row" style="margin-top:12px"><button id="gCancel">Cancel</button>'+(isNew?'':'<button id="gDel" class="danger">Remove</button>')+'<button class="pri" id="gOk">Save</button></div>';
-  showSheet(h,'top');
+  showSheet(h,'bottom');{const q=diagRect(M,g);reveal((q[1]+q[3])/2);draw();}
   $('gCancel').onclick=hideSheet;
   if(!isNew)$('gDel').onclick=()=>{pushHist();M.diags=M.diags.filter(q=>q!==g);hideSheet();changed();};
   $('gOk').onclick=()=>{
@@ -645,9 +669,10 @@ function openList(){
 }
 function openLayers(){
   const rows=[['walls','Walls'],['opens','Doors and windows'],['stairs','Stairs'],['fit','Interior fittings'],['furn','Furniture and symbols'],['text','Text'],['dims','Site dimensions'],['notes','Notes'],['under','Original drawing (underlay)']];
-  let h='<h3>Show</h3>'+rows.map(r=>'<label class="lay"><input type="checkbox" data-y="'+r[0]+'"'+(LAY[r[0]]?' checked':'')+'><span>'+r[1]+'</span></label>').join('')+'<div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
+  let h='<h3>Show</h3><label class="f" style="margin-top:0">Look of the plan</label><select id="yLook"><option value="pres">Presentation (brown walls, tiled floors)</option><option value="tech"'+(outOpt(M).style==='tech'?' selected':'')+'>Technical (black and white)</option></select>'+rows.map(r=>'<label class="lay"><input type="checkbox" data-y="'+r[0]+'"'+(LAY[r[0]]?' checked':'')+'><span>'+r[1]+'</span></label>').join('')+'<div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
   showSheet(h,'bottom');
   sheet.querySelectorAll('[data-y]').forEach(c=>c.onchange=()=>{LAY[c.dataset.y]=c.checked?1:0;draw();});
+  $('yLook').onchange=ev=>{M.out.style=ev.target.value;autosave();draw();};
   $('yClose').onclick=hideSheet;
 }
 function openMenu(){
@@ -823,6 +848,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{e.preventDefault();const [x,y]=local(e);zoomAt(x,y,Math.exp(-e.deltaY*0.0015));draw();},{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
 window.addEventListener('resize',resize);
+if(window.visualViewport){const vv=window.visualViewport,kb=()=>{const k=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);document.documentElement.style.setProperty('--kb',k+'px');document.body.classList.toggle('kb',k>80);};vv.addEventListener('resize',kb);vv.addEventListener('scroll',kb);}
 window.addEventListener('beforeunload',e=>{if(M&&fileDirty&&M.dims.length){e.preventDefault();e.returnValue='';}});
 
 /* ---- start ---- */

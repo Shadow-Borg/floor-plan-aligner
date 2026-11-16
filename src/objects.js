@@ -204,7 +204,7 @@ function rooms(M,P){
     list.push({id,area,closed:!edge,box:[x0,y0,x1,y1],name:null,labels:[]});
   }
   const R={G,comp,list};
-  for(const t of M.texts){if(!t.room||t.s.length>24)continue;const r=roomAt(R,P[2*t.p],P[2*t.p+1]);if(r&&r.closed){r.labels.push([t.s,P[2*t.p],P[2*t.p+1]]);if(!r.name)r.name=t.s;}}
+  for(const t of M.texts){if(!roomLabel(t))continue;const r=roomAt(R,P[2*t.p],P[2*t.p+1]);if(r&&r.closed){r.labels.push([t.s,P[2*t.p],P[2*t.p+1]]);if(!r.name)r.name=t.s;}}
   return R;
 }
 function roomAt(R,x,y){
@@ -217,7 +217,7 @@ function roomName(r,x,y){if(!r||!r.labels.length)return null;let b=r.labels[0],b
 function roomTable(M){                        // each named closed room: area on the drawing and as built, in square metres
   const now=rooms(M,M.P),was=rooms(M,M.P0),u=UNIT_M[M.unit]*UNIT_M[M.unit],out=[];
   for(const t of M.texts){
-    if(!t.room||t.s.length>24)continue;
+    if(!roomLabel(t))continue;
     const a=roomAt(now,M.P[2*t.p],M.P[2*t.p+1]),b=roomAt(was,M.P0[2*t.p],M.P0[2*t.p+1]);
     if(a&&a.closed&&a.name===t.s)out.push({name:a.labels.map(l=>l[0]).join(' + '),now:a.area*u,was:b&&b.closed?b.area*u:null});
   }

@@ -15,6 +15,8 @@ const CLS={
   line:    {n:'Other line',      layer:'A-FLOR-OTLN',aci:7,lw:0.35,col:'#111'}
 };
 const OPN_TINT={Window:'#bfeaf5',Door:'#c5efc5',Opening:'#c5efc5'},STAIR_TINT='#fff3b0';
+/* a text that names a room (not 'UP', not a long note) */
+const roomLabel=t=>!!t.room&&t.s.length<=24&&t.s.trim().length>=3&&!/^(up|dn|down)$/i.test(t.s.trim());
 const RAY_SKIP={interior:1,stair:1,src:1};
 const paperU=(M,mm,sc)=>mm*0.001*(sc||M.sc||100)/UNIT_M[M.unit];      // paper millimetres -> drawing units
 const textH=(M,t,sc)=>paperU(M,t.room&&t.s.length<=24?3.5:2.5,sc);    // ISO 3098 lettering heights
@@ -219,7 +221,7 @@ function buildModel(DX,roles,unit,name){
   const addP=(x,y)=>{M.P.push(x,y);return M.P.length/2-1;};
   for(const e of DX.ents){
     const role=roles[e.layer]||'structure';
-    if(role==='hide')continue;
+    if(role==='hide'&&!(e.t==='H'&&/^A-WALL-PATT$/i.test(e.layer)))continue;
     if(e.t==='I'){
       const pr=[],dec=[];explode([e],IDENT,0,null,pr,DX.blocks);
       for(const p of pr){
@@ -243,7 +245,7 @@ function buildModel(DX,roles,unit,name){
     }
     if(e.t==='T'){M.texts.push({p:addP(e.p[0],e.p[1]),h:e.h,s:e.s,rot:e.rot,ha:e.ha,va:e.va,room:role==='structure'});continue;}
     if(e.t==='H'){
-      if(e.solid)M.fills.push(e.paths.map(pp=>{const ix=[];for(let i=0;i<pp.length;i+=2)ix.push(addP(pp[i],pp[i+1]));return ix;}));
+      if(e.solid&&role!=='decor')M.fills.push(e.paths.map(pp=>{const ix=[];for(let i=0;i<pp.length;i+=2)ix.push(addP(pp[i],pp[i+1]));return ix;}));
       continue;
     }
     if(e.t==='L'){
@@ -567,7 +569,7 @@ function setDimension(M,d,val,choice){
 function nearestRoom(M,x,y){
   let best=null,bd=Infinity;
   for(const t of M.texts){
-    if(!t.room||t.s.length>24)continue;
+    if(!roomLabel(t))continue;
     const d=Math.hypot(M.P[2*t.p]-x,M.P[2*t.p+1]-y);
     if(d<bd){bd=d;best=t.s;}
   }

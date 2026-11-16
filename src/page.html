@@ -35,7 +35,9 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 #empty p{max-width:340px;margin:0;color:var(--mute)}
 .sheet{position:fixed;left:calc(8px + var(--sl));right:calc(8px + var(--sr));max-width:520px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:14px;z-index:10;overflow:auto;display:none}
 .sheet.top{top:calc(60px + var(--st));max-height:calc(100% - 140px - var(--st) - var(--sb))}
-.sheet.bottom{bottom:calc(68px + var(--sb));max-height:46%}
+.sheet.bottom{bottom:calc(68px + var(--sb));max-height:58%}
+body.kb .sheet.bottom{bottom:calc(var(--kb) + 6px);max-height:calc(100% - var(--kb) - 70px - var(--st))}
+.mrow{flex-wrap:nowrap}.mrow input{flex:1;min-width:0}.mrow button{flex:0 0 70px}.mrow button[data-more]{flex:0 0 48px;font-size:20px}
 @media(min-width:900px){.sheet.bottom{left:auto;right:calc(12px + var(--sr));top:calc(110px + var(--st));bottom:auto;width:360px;max-height:calc(100% - 200px);margin:0}}
 .sheet h3{margin:0 0 8px;font-size:16px}
 .sheet .hint{color:var(--mute);font-size:13px;margin:8px 0 0}

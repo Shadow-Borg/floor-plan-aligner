@@ -140,10 +140,17 @@ console.log('STAGE 5: snapping, heights, notes, symbols, dimension layout');
   const spans=Object.values(byLine).map(g=>({k:g[0].k,sum:g.reduce((a,d)=>a+d.b-d.a,0)}));
   ok([0,1].every(k=>new Set(spans.filter(q=>q.k===k).map(q=>q.sum.toFixed(1))).size===1),'every string along one direction adds up to the same overall size',spans);
   ok(L.rtags.length>=4&&L.otags.length===M.opens.length&&L.notes.length===1&&L.grid.length>=4,'room tags, opening tags, note marker and grid are laid out',[L.rtags.length,L.otags.length,L.grid.length]);
-  const tech=C.planSVG(M),pres=C.planSVG(M,{style:'pres',grid:1});
+  const tech=C.planSVG(M,{style:'tech'}),pres=C.planSVG(M,{style:'pres',grid:1});
   ok(tech.includes('BEDROOM')&&!tech.includes('url(#tile)')&&pres.includes('url(#tile)')&&pres.includes('#5a3d33'),'technical and presentation drawings differ as intended');
   const d2=C.exportDXF(M),cnt=t=>d2.split(String.fromCharCode(13,10)).filter((l,i,a)=>a[i-1]==='  0'||a[i-1]==='0').filter(l=>l===t).length;
   ok(d2.includes('AC1015')&&cnt('DIMENSION')===C.sheetFit(M,{style:'tech'}).L.dims.length&&cnt('HATCH')===1&&d2.includes('ISO-25')&&d2.includes('DOOR AND WINDOW SCHEDULE')&&d2.includes('Check plaster here'),'DXF has real dimensions, a wall hatch, the schedule and the notes',[cnt('DIMENSION'),cnt('HATCH')]);
+  {const acc=m=>{for(const q of m.sugs.slice())C.acceptSug(m,q,q.guess);return m;},area=m=>{const g=C.massGrid(m);let a=0;for(let j=0;j<g.ny;j++)for(let i=0;i<g.nx;i++)if(g.mass[j*g.nx+i])a+=(g.xs[i+1]-g.xs[i])*(g.ys[j+1]-g.ys[j]);return a;};
+    const A=acc(load()),DX3=C.parseDXF(C.exportDXF(A)),B=C.makeModel(DX3,C.defaultRoles(DX3),null,'again');
+    ok(B.fills.length>0&&B.th.includes(15)&&B.th.includes(23)&&B.opens.filter(o=>o.type==='window').length===7,'an exported DXF opens again with its wall hatch, both wall thicknesses and the windows',[B.fills.length,B.th,B.opens.length]);
+    acc(B);const closed=m=>C.rooms(m).list.filter(r=>r.closed).length;
+    ok(B.walls.length===A.walls.length&&B.opens.length===A.opens.length&&closed(B)===closed(A)&&Math.abs(area(B)-area(A))/area(A)<0.05,'and gives the same walls, openings and rooms',[B.walls.length,A.walls.length,area(B),area(A)]);}
+  ok(!C.roomLabel({room:true,s:'UP'})&&C.roomLabel({room:true,s:'BEDROOM'})&&C.nearestRoom(M,ox+200,oy+200)!=='UP','UP is not taken for a room name');
+  const n0=M.syms.length,nf=C.autoFurnish(M);ok(nf>=4&&M.syms.some(s=>s.type==='bed2')&&M.syms.some(s=>s.type==='tree'),'rooms are furnished from their names',[nf,M.syms.slice(n0).map(s=>s.type)]);
   const rp=C.reportHTML(M,'x'),cs=C.reportCSV(M);
   ok(rp.includes('Door and window schedule')&&rp.includes('Site notes')&&cs.includes('Check plaster here')&&cs.includes('Lintel'),'report and CSV carry the schedule and the notes');
 }

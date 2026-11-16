@@ -82,7 +82,7 @@ function symPaths(M,s){
 const symRad=(M,s)=>{const D=SYM[s.type];return D?Math.max(D.w,D.h)/2*(s.k||1)/UNIT_M[M.unit]:0;};
 
 /* ---- what the drawing shows besides the plan: dimension strings, grid, tags, notes; nothing overlaps ---- */
-const OUT0={style:'tech',paper:'A4',dims:1,grid:0,rt:1,ot:1,notes:1,txt:1};
+const OUT0={style:'pres',paper:'A4',dims:1,grid:0,rt:1,ot:1,notes:1,txt:1};
 const outOpt=(M,o)=>Object.assign({},OUT0,M.out||{},o||{});
 const tw=(s,h)=>String(s).length*h*0.6;
 const keptH=(M,t,sc)=>Math.max(paperU(M,1.8,sc),Math.min(textH(M,t,sc),t.h>0?t.h:Infinity));
@@ -102,7 +102,7 @@ function planBox(M,G,sc){
     if(s[3]||M.cls[i]==='src')return;const x1=P[2*s[0]],y1=P[2*s[0]+1],x2=P[2*s[1]],y2=P[2*s[1]+1];
     if(inq(x1,y1)&&inq(x2,y2)){grow(x1,y1);grow(x2,y2);}
   });
-  for(const s of M.syms||[]){const x=P[2*s.p],y=P[2*s.p+1],r=symRad(M,s);grow(x-r,y-r);grow(x+r,y+r);}
+  for(const s of M.syms||[]){if(s.type==='tree'||s.type==='plant')continue;const x=P[2*s.p],y=P[2*s.p+1],r=symRad(M,s);grow(x-r,y-r);grow(x+r,y+r);}
   for(const t of M.texts){const bx=textBox(M,t,sc);if(inq(bx[0],bx[1])&&inq(bx[2],bx[3])){grow(bx[0],bx[1]);grow(bx[2],bx[3]);}}
   return {mass:b,all:o};
 }
@@ -162,7 +162,7 @@ function sheetGeom(M,opt){
   /* texts kept from the drawing, then notes, room tags and opening tags, each placed clear of the others */
   const R=rooms(M,P),R0=rooms(M,M.P0),labs=new Map();
   M.texts.forEach((t,i)=>{
-    if(!t.room||t.s.length>24||t.s.trim().length<3||/^(up|dn|down)$/i.test(t.s.trim()))return;const x=P[2*t.p],y=P[2*t.p+1],r=roomAt(R,x,y);
+    if(!roomLabel(t))return;const x=P[2*t.p],y=P[2*t.p+1],r=roomAt(R,x,y);
     if(r&&r.closed){if(o.rt)L.hide.add(i);if(!labs.has(r.id))labs.set(r.id,[]);const bx=textBox(M,t,sc);labs.get(r.id).push({s:t.s,x:t.rot?x:(bx[0]+bx[2])/2,y:t.rot?y:(bx[1]+bx[3])/2});}
   });
   if(o.txt)M.texts.forEach((t,i)=>{
@@ -201,6 +201,7 @@ function sheetGeom(M,opt){
   }
   const g=o.grid&&L.grid.length?9:0,m=margin.map(v=>mm(v+2+g)),sb=structBBox(M)||B;
   L.ext=[Math.min(B[0]-m[0],sb[0]-mm(4)),Math.min(B[1]-m[1],sb[1]-mm(4))-mm(14),Math.max(B[2]+m[2],sb[2]+mm(4)),Math.max(B[3]+m[3],sb[3]+mm(4))];
+  for(const s of M.syms||[]){const x=P[2*s.p],y=P[2*s.p+1],q=symRad(M,s)+mm(2);L.ext[0]=Math.min(L.ext[0],x-q);L.ext[1]=Math.min(L.ext[1],y-q-mm(14));L.ext[2]=Math.max(L.ext[2],x+q);L.ext[3]=Math.max(L.ext[3],y+q);}
   return L;
 }
 function dimParts(d,mm){                        // the lines of one dimension: line, two extension lines, two ticks
@@ -239,6 +240,38 @@ function doorSwings(M,R){
   return out;
 }
 
+/* floors of the closed rooms as rectangles */
+function floorRects(R){
+  const {xs,ys,nx,ny}=R.G,out=[];
+  for(let j=0;j<ny;j++){let i=0;while(i<nx){const c=R.comp[j*nx+i];if(c<0||!R.list[c].closed){i++;continue;}const a=i;while(i<nx&&R.comp[j*nx+i]>=0&&R.list[R.comp[j*nx+i]].closed)i++;out.push([xs[a],ys[j],xs[i],ys[j+1]]);}}
+  return out;
+}
+/* a first furnishing from the room names: each piece goes against a wall that has no opening behind it */
+function autoFurnish(M){
+  const R=rooms(M),u=UNIT_M[M.unit],maxT=M.th.length?Math.max(...M.th):0.3/u,labs=new Map(),added=[],P=M.P;
+  for(const t of M.texts){if(!roomLabel(t))continue;const x=P[2*t.p],y=P[2*t.p+1],r=roomAt(R,x,y);if(r&&r.closed){if(!labs.has(r.id))labs.set(r.id,[]);labs.get(r.id).push({s:t.s,x,y});}}
+  const put=(type,x,y,rot)=>{const s={id:M.nid++,p:addPt(M,x,y),type,rot,k:1};M.syms.push(s);added.push(s);};
+  const want=s=>/bed/i.test(s)?['bed2']:/living|hall|lounge|drawing/i.test(s)?['sofa']:/dining/i.test(s)?['table']:/toilet|bath|w\.?c/i.test(s)?['wc','basin']:/kitchen/i.test(s)?['sink']:[];
+  const O=M.opens.map(o=>rectOf(M,o)),ROT={'1:1':0,'0:-1':90,'1:-1':180,'0:1':270};
+  for(const r of R.list){
+    const ls=labs.get(r.id);if(!ls)continue;const b=r.box,used={};
+    for(const lb of ls)for(const type of want(lb.s)){
+      const D=SYM[type],w=D.w/u,d=D.h/u;
+      if(ls.length>1){put(type,lb.x+0.6/u,lb.y-d/2-0.5/u,0);continue;}
+      for(const sd of [[1,1],[0,-1],[0,1],[1,-1]]){
+        const k=sd[0],s=sd[1],a=1-k,key=k+':'+s;if(used[key])continue;
+        if(b[a+2]-b[a]<w+0.2/u||b[k+2]-b[k]<d+0.5/u)continue;
+        const f=s>0?b[k+2]:b[k],c=(b[a]+b[a+2])/2;
+        if(O.some(q=>Math.abs((q[k]+q[k+2])/2-f)<maxT*1.5&&q[a]<c+w/2+0.1/u&&q[a+2]>c-w/2-0.1/u))continue;
+        const ck=f-s*(d/2+0.03/u);used[key]=1;put(type,k?c:ck,k?ck:c,ROT[key]);break;
+      }
+    }
+  }
+  const pb=planBox(M,massGrid(M),M.sc||100);
+  if(pb&&!M.syms.some(s=>s.type==='tree')){const m=pb.mass;put('tree',m[0]-1.7/u,m[1]+1.6/u,0);put('tree',m[2]+1.7/u,m[3]-1.6/u,40);}
+  return added.length;
+}
+
 /* ---- the drawing as SVG: 'tech' follows the drawing standards, 'pres' is the presentation style ---- */
 function planSVG(M,opt,fitted){
   const F=fitted||sheetFit(M,opt);if(!F||!F.L.ext)return '';
@@ -260,8 +293,7 @@ function planSVG(M,opt,fitted){
   if(pres){                                     // tiled floors in every closed room and through the doorways
     const t=0.6/u;
     s+='<defs><pattern id="tile" width="'+f(t)+'" height="'+f(t)+'" patternUnits="userSpaceOnUse"><rect width="'+f(t)+'" height="'+f(t)+'" fill="'+C.floor+'"/><path d="M0 0H'+f(t)+'M0 0V'+f(t)+'" stroke="'+C.tile+'" stroke-width="'+f(mm(0.13))+'" fill="none"/></pattern></defs>';
-    const {xs,ys,nx,ny}=R.G;d='';
-    for(let j=0;j<ny;j++){let i=0;while(i<nx){const c=R.comp[j*nx+i];if(c<0||!R.list[c].closed){i++;continue;}const a=i;while(i<nx&&R.comp[j*nx+i]>=0&&R.list[R.comp[j*nx+i]].closed)i++;d+=rect([xs[a],ys[j],xs[i],ys[j+1]]);}}
+    d='';for(const q of floorRects(R))d+=rect(q);
     for(const q of M.opens)if(q.type!=='window')d+=rect(rectOf(M,q));
     s+=fill(d,'url(#tile)');
     d='';for(const fl of M.stairs)d+=rect(flightBox(M,fl));s+=fill(d,C.stair);
@@ -437,7 +469,7 @@ function exportDXF(M,opt){
     w(2,b.name,10,n(g.def[0]),20,n(g.def[1]),30,'0.0',11,n(d.tx),21,n(d.ty),31,'0.0',70,32|(d.moved?128:0),71,5,42,n(d.b-d.a),3,'ISO-25',100,'AcDbAlignedDimension',
       13,n(g.o1[0]),23,n(g.o1[1]),33,'0.0',14,n(g.o2[0]),24,n(g.o2[1]),34,'0.0',50,d.k?'90.0':'0.0',100,'AcDbRotatedDimension');
   }
-  for(const tg of L.rtags){let y=tg.y+tg.h/2;for(const q of tg.lines){y-=q.h*0.7;text(q.dev?'A-ANNO-NOTE':'A-ANNO-TEXT',tg.x,y,q.h,q.s,0,'center','middle');y-=q.h*0.7;}}
+  for(const tg of L.rtags){let y=tg.y+tg.h/2;for(const q of tg.lines){y-=q.h*0.7;text(q.b?'A-ANNO-TEXT':q.dev?'A-ANNO-NOTE':'A-ANNO-IDEN',tg.x,y,q.h,q.s,0,'center','middle');y-=q.h*0.7;}}
   for(const tg of L.otags){
     if(tg.hex){const p=[];for(let i=0;i<6;i++){const a=i*Math.PI/3;p.push(tg.x+tg.r*1.1*Math.cos(a),tg.y+tg.r*1.1*Math.sin(a));}pline('A-ANNO-IDEN',p,true);}else circle('A-ANNO-IDEN',tg.x,tg.y,tg.r);
     text('A-ANNO-IDEN',tg.x,tg.y,mm(2.2),tg.s,0,'center','middle');
@@ -457,7 +489,7 @@ function exportDXF(M,opt){
       text('A-ANNO-NOTE',x,y,mm(3.5),'SITE NOTES',0,'left','middle');y-=row*1.2;
       M.notes.forEach((nt,i)=>{text('A-ANNO-NOTE',x,y,th,(i+1)+'. ['+(nt.kind||'note').toUpperCase()+'] '+nt.s,0,'left','middle');y-=row;});
     }
-    text('A-ANNO-TEXT',L.box[0],L.ext[1]+mm(4),mm(3.5),'SCALE 1:'+sc+'  -  '+(M.name||'PLAN').toUpperCase()+'  -  DIMENSIONS IN '+du.toUpperCase(),0,'left','middle');
+    text('A-ANNO-SCHD',L.box[0],L.ext[1]+mm(4),mm(3.5),'SCALE 1:'+sc+'  -  '+(M.name||'PLAN').toUpperCase()+'  -  DIMENSIONS IN '+du.toUpperCase(),0,'left','middle');
   }
   const hRoot=H(),hGrp=H(),hPSN=H();
   w(0,'ENDSEC',0,'SECTION',2,'OBJECTS',0,'DICTIONARY',5,hRoot,330,0,100,'AcDbDictionary',281,1,3,'ACAD_GROUP',350,hGrp,3,'ACAD_PLOTSTYLENAME',350,hPSN,0,'DICTIONARY',5,hGrp,330,hRoot,100,'AcDbDictionary',281,1,
@@ -527,4 +559,4 @@ if(typeof module!=='undefined')module.exports={parseDXF,defaultRoles,layerStats,
   rectOf,wallDir,roomName,probe,hitsAxis,candidates,applyOp,openDims,colDims,dimName,pickAt,splitWall,mergeWalls,neighbours,deleteWall,addOpening,acceptSug,drawWall,setCoord,addPt,lowP,highP,
   dimVal,dimGeom,dimStatus,conflicts,pickCandidate,setDimension,structBBox,nearestRoom,fmt,chainFor,diagInfo,exportDXF,planSVG,reportHTML,reportCSV,printScale,
   stairAt,stairDims,nearestSeg,segGroup,setLineClass,openings,epsOf,UNIT_M,CLS,
-  snapAxis,snapPoint,openTags,oSill,oHt,oSillS,oHtS,hDef,SYM,symPaths,symRad,sheetGeom,sheetFit,outOpt,doorSwings};
+  snapAxis,snapPoint,openTags,oSill,oHt,oSillS,oHtS,hDef,SYM,symPaths,symRad,sheetGeom,sheetFit,outOpt,doorSwings,autoFurnish,floorRects,roomLabel};
