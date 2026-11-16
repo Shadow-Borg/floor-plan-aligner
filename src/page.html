@@ -44,6 +44,7 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .big{display:block;width:100%;text-align:left;padding:10px 12px;font-size:20px;font-weight:600;margin-bottom:8px}
 .big small{display:block;font-size:12px;font-weight:400;color:var(--mute)}
 label.f{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);-webkit-user-select:text;user-select:text;resize:vertical}
 input[type=text],select{width:100%;font:inherit;min-height:46px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
 input.num{font-size:24px;font-weight:600}
 .nudge{display:flex;gap:6px;align-items:center}.nudge button{flex:0 0 48px;font-size:22px;font-weight:600}.nudge input{flex:1;text-align:center;font-size:18px;font-weight:600}
@@ -58,19 +59,30 @@ tr.c td{color:var(--bad)}
 .lay{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px}.lay span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lay select{width:130px;min-height:40px}
 .lay input[type=checkbox]{width:24px;height:24px;flex:0 0 24px}
 .menu button{display:block;width:100%;text-align:left;margin-bottom:8px}
+#bSnap{position:fixed;left:calc(8px + var(--sl));bottom:calc(68px + var(--sb));z-index:4;min-height:40px;font-size:13px;padding:0 10px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#bSnap.on{border-color:#d6249f;color:#a01773;font-weight:600}
+#bView{font-size:13px;padding:0 10px}
+#view{position:fixed;inset:0;z-index:8;background:#6f757d;display:none;flex-direction:column}
+#view .vbar{display:flex;gap:6px;align-items:center;padding:calc(6px + var(--st)) calc(8px + var(--sr)) 6px calc(8px + var(--sl));background:var(--card);border-bottom:1px solid var(--line)}
+#view .vbar select{flex:1;min-width:0}
+#view .vbar button{padding:0 10px;font-size:14px}
+#vInfo{background:#eef3fa;font-size:12px;padding:5px 10px;color:var(--mute)}
+#vBody{flex:1;min-height:0;overflow:hidden;touch-action:none;padding:0 0 var(--sb) 0}
+#vBody svg{display:block;background:#fff}
 #toast{position:fixed;left:50%;bottom:calc(76px + var(--sb));transform:translateX(-50%);background:#1b1f24;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;max-width:90vw;z-index:30;display:none;text-align:center;pointer-events:none}
 #ask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
 #ask div.box{background:var(--card);border-radius:14px;padding:18px;max-width:380px;width:100%}
 #ask p{margin:0 0 14px}
 #print{display:none}
-#print h1{font-size:20px;margin:0 0 4px}#print h2{font-size:15px;margin:14px 0 6px}#print .meta{font-size:12px;color:#444;margin:4px 0}#print svg.plan{display:block;margin:8px auto}#print table{font-size:12px}#print td,#print th{padding:4px 6px;border:1px solid #999}#print li{font-size:12px;margin-bottom:4px}
-@media print{html,body{height:auto;overflow:visible;background:#fff}header,#bar,#stage,#tools,#empty,.sheet,#toast,#ask{display:none!important}#print{display:block;padding:0;color:#000}}
+#print h1{font-size:20px;margin:0 0 4px}#print h2{font-size:15px;margin:14px 0 6px}#print .meta{font-size:12px;color:#444;margin:4px 0}#print svg.plan{display:block;margin:0 auto;max-width:100%;height:auto}#print .pg{page-break-after:always;break-after:page}#print table{font-size:12px}#print td,#print th{padding:4px 6px;border:1px solid #999}#print li{font-size:12px;margin-bottom:4px}
+@media print{html,body{height:auto;overflow:visible;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}header,#bar,#stage,#tools,#empty,.sheet,#toast,#ask,#view,#bSnap{display:none!important}#print{display:block;padding:0;color:#000}}
 </style>
 </head>
 <body>
 <header>
   <div class="ttl"><span id="pname">Site Plan Adjuster</span><small id="pinfo">No plan open</small></div>
   <button id="bSave" style="display:none">Save</button>
+  <button id="bView" style="display:none">Drawing</button>
   <button id="bList" style="display:none">List</button>
   <button id="bMenu">Menu</button>
 </header>
@@ -85,6 +97,8 @@ tr.c td{color:var(--bad)}
   <button class="pri" id="bOpen0">Open DXF or project file</button>
   <p style="font-size:13px">In AutoCAD use Save As &rarr; DXF to get a DXF from your DWG. On iPhone, add this page to the Home Screen so your work is kept.</p>
 </div>
+<button id="bSnap" style="display:none">Snap on</button>
+<div id="view"><div class="vbar"><button id="vClose">Close</button><select id="vStyle"><option value="tech">Technical</option><option value="pres">Presentation</option></select><button id="vOpt">Options</button><button id="vOut" class="pri">Export</button></div><div id="vInfo"></div><div id="vBody"></div></div>
 <div class="sheet" id="sheet"></div>
 <div id="toast"></div>
 <div id="ask"><div class="box"><p id="askMsg"></p><div class="row"><button id="askNo">Cancel</button><button class="pri" id="askYes">OK</button></div></div></div>

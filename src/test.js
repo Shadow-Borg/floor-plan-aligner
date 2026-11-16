@@ -109,7 +109,7 @@ ok(C.conflicts(M,M.P,null)===0,'no conflicts after all edits',C.conflicts(M,M.P,
 
 console.log('STAGE 4: outputs from objects');
 const dxf=C.exportDXF(M),layers=[...new Set(dxf.split('\r\n').filter((l,i,a)=>a[i-1]==='8'))];
-ok(['A-WALL','A-WALL-PATT','A-GLAZ','A-FLOR-STRS','A-FLOR-CASE','A-ANNO-TEXT','A-ANNO-DIMS-DEVN'].every(l=>layers.includes(l)),'DXF uses the standard layer names',layers);
+ok(['A-WALL','A-WALL-PATT','A-GLAZ','A-FLOR-STRS','A-FLOR-CASE','A-ANNO-TEXT','A-ANNO-DIMS','A-ANNO-IDEN'].every(l=>layers.includes(l)),'DXF uses the standard layer names',layers);
 const DX2=C.parseDXF(dxf),M2=C.makeModel(DX2,C.defaultRoles(DX2),null,'r');
 const bb=C.structBBox(M),b2=C.structBBox(M2);
 ok(M2.unit==='cm'&&M2.walls.length>=15,'exported DXF reads back as walls',[M2.unit,M2.walls.length]);
@@ -118,5 +118,34 @@ const svg=C.planSVG(M);ok(svg.includes('SCALE 1:100')&&svg.includes('mm"'),'repo
 const rep=C.reportHTML(M,'x');ok(rep.includes('Room areas')&&rep.includes('BEDROOM')&&rep.includes('Measurements'),'report has measurements and room areas');
 const csv=C.reportCSV(M);ok(csv.includes('As-built area')&&csv.includes('Stair tread depth'),'CSV has measurements and areas');
 const js=JSON.parse(JSON.stringify(M));ok(js.walls.length===M.walls.length&&near(C.dimVal(js,js.dims[0],js.P),400),'project file round-trips');
+console.log('STAGE 5: snapping, heights, notes, symbols, dimension layout');
+{
+  const w0=M.walls[0],r0=C.rectOf(M,w0),sn=C.snapAxis(M,0,r0[0]+3,5,null,(r0[1]+r0[3])/2,null);
+  ok(sn.n&&near(sn.v,r0[0]),'snap catches a wall face within reach',sn);
+  const far=C.snapAxis(M,0,r0[0]-1e5+0.4,5,null,null,r0[0]-1e5);ok(far.n===null&&near(far.v,r0[0]-1e5),'with nothing near, the length rounds to the step',far);
+  M.snap=0;ok(C.snapAxis(M,0,r0[0]+3,5,null,null,null).n===null,'snap can be switched off');M.snap=1;
+  const T=C.openTags(M),wins=M.opens.filter(o=>o.type==='window'),tags=wins.map(o=>T.tag.get(o.id));
+  ok(tags.every(t=>/^W[0-9]+$/.test(t))&&T.rows.reduce((a,r)=>a+r.n,0)===M.opens.length,'every opening has a tag and the schedule counts them all',tags);
+  const a=wins[0],same=wins.find(o=>o!==a&&T.tag.get(o.id)===T.tag.get(a.id));
+  if(same){same.sH=C.oHt(M,same)-5;ok(C.openTags(M).tag.get(same.id)!==C.openTags(M).tag.get(a.id),'a different site height gives a different tag');same.sH=null;}
+  ok(near(C.oSill(M,a),90)&&near(C.oHt(M,a),120)&&near(C.oSill(M,M.opens.find(o=>o.type==='door')),0),'default sill and height by type');
+  M.notes=[{id:M.nid++,p:C.addPt(M,ox+200,oy+200),s:'Check plaster here',kind:'check'}];
+  M.syms=[{id:M.nid++,p:C.addPt(M,ox+250,oy+150),type:'bed2',rot:90,k:1}];
+  const F=C.sheetFit(M,{grid:1}),L=F.L;
+  ok(L.dims.length>20&&[0,1].every(k=>L.dims.some(d=>d.k===k)),'dimension strings on both axes',L.dims.length);
+  const bx=L.dims.map(d=>{const w=String(d.s).length*C.sheetGeom(M,{sc:L.sc}).sc*0+String(d.s).length*0.6*2.5*L.sc*0.001/C.UNIT_M[M.unit],h=2.5*L.sc*0.001/C.UNIT_M[M.unit];return d.k?[d.tx-h/2,d.ty-w/2,d.tx+h/2,d.ty+w/2]:[d.tx-w/2,d.ty-h/2,d.tx+w/2,d.ty+h/2];});
+  let clash=0;for(let i=0;i<bx.length;i++)for(let j=i+1;j<bx.length;j++)if(bx[i][0]<bx[j][2]-1e-6&&bx[i][2]>bx[j][0]+1e-6&&bx[i][1]<bx[j][3]-1e-6&&bx[i][3]>bx[j][1]+1e-6)clash++;
+  ok(clash===0,'no two dimension texts overlap',clash);
+  const byLine={};for(const d of L.dims){const key=d.k+':'+d.c.toFixed(2);(byLine[key]=byLine[key]||[]).push(d);}
+  const spans=Object.values(byLine).map(g=>({k:g[0].k,sum:g.reduce((a,d)=>a+d.b-d.a,0)}));
+  ok([0,1].every(k=>new Set(spans.filter(q=>q.k===k).map(q=>q.sum.toFixed(1))).size===1),'every string along one direction adds up to the same overall size',spans);
+  ok(L.rtags.length>=4&&L.otags.length===M.opens.length&&L.notes.length===1&&L.grid.length>=4,'room tags, opening tags, note marker and grid are laid out',[L.rtags.length,L.otags.length,L.grid.length]);
+  const tech=C.planSVG(M),pres=C.planSVG(M,{style:'pres',grid:1});
+  ok(tech.includes('BEDROOM')&&!tech.includes('url(#tile)')&&pres.includes('url(#tile)')&&pres.includes('#5a3d33'),'technical and presentation drawings differ as intended');
+  const d2=C.exportDXF(M),cnt=t=>d2.split(String.fromCharCode(13,10)).filter((l,i,a)=>a[i-1]==='  0'||a[i-1]==='0').filter(l=>l===t).length;
+  ok(d2.includes('AC1015')&&cnt('DIMENSION')===C.sheetFit(M,{style:'tech'}).L.dims.length&&cnt('HATCH')===1&&d2.includes('ISO-25')&&d2.includes('DOOR AND WINDOW SCHEDULE')&&d2.includes('Check plaster here'),'DXF has real dimensions, a wall hatch, the schedule and the notes',[cnt('DIMENSION'),cnt('HATCH')]);
+  const rp=C.reportHTML(M,'x'),cs=C.reportCSV(M);
+  ok(rp.includes('Door and window schedule')&&rp.includes('Site notes')&&cs.includes('Check plaster here')&&cs.includes('Lintel'),'report and CSV carry the schedule and the notes');
+}
 console.log(fail?'\nFAILED '+fail+' of '+(pass+fail):'\nall '+pass+' checks passed');
 process.exit(fail?1:0);

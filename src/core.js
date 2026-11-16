@@ -19,7 +19,7 @@ const RAY_SKIP={interior:1,stair:1,src:1};
 const paperU=(M,mm,sc)=>mm*0.001*(sc||M.sc||100)/UNIT_M[M.unit];      // paper millimetres -> drawing units
 const textH=(M,t,sc)=>paperU(M,t.room&&t.s.length<=24?3.5:2.5,sc);    // ISO 3098 lettering heights
 function layerHint(name){
-  return /STRS|STAIR/i.test(name)?'stair':/GLAZ|WINDOW|^WIN/i.test(name)?'window':/CASE|FIXT|INTERIOR|CUPB|KITCH/i.test(name)?'interior':/WALL|COLS|COLUMN/i.test(name)?'wall':null;
+  return /STRS|STAIR/i.test(name)?'stair':/GLAZ|WINDOW|^WIN/i.test(name)?'window':/CASE|FIXT|INTERIOR|CUPB|KITCH|A-DOOR/i.test(name)?'interior':/WALL|COLS|COLUMN/i.test(name)?'wall':null;
 }            // 1 mm in drawing units
 
 function parseDXF(text){
@@ -211,7 +211,7 @@ function layerStats(DX){
 }
 function defaultRoles(DX){
   const roles={};
-  for(const k in layerStats(DX))roles[k]=/^(SITE-|WALL-FILL$|A-ANNO-DIMS|A-ANNO-NOTE|A-WALL-PATT$)/i.test(k)?'hide':DECOR_RE.test(k)?'decor':'structure';
+  for(const k in layerStats(DX))roles[k]=/^(SITE-|WALL-FILL$|A-ANNO-DIMS|A-ANNO-NOTE|A-ANNO-IDEN|A-ANNO-SCHD|A-GRID$|A-WALL-PATT$)/i.test(k)?'hide':DECOR_RE.test(k)?'decor':'structure';
   return roles;
 }
 function buildModel(DX,roles,unit,name){
