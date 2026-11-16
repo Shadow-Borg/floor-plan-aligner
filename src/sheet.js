@@ -82,7 +82,7 @@ function symPaths(M,s){
 const symRad=(M,s)=>{const D=SYM[s.type];return D?Math.max(D.w,D.h)/2*(s.k||1)/UNIT_M[M.unit]:0;};
 
 /* ---- what the drawing shows besides the plan: dimension strings, grid, tags, notes; nothing overlaps ---- */
-const OUT0={style:'pres',paper:'A4',dims:1,grid:0,rt:1,ot:1,notes:1,txt:1};
+const OUT0={style:'tech',paper:'A4',dims:1,grid:0,rt:1,ot:1,notes:1,txt:1};
 const outOpt=(M,o)=>Object.assign({},OUT0,M.out||{},o||{});
 const tw=(s,h)=>String(s).length*h*0.6;
 const keptH=(M,t,sc)=>Math.max(paperU(M,1.8,sc),Math.min(textH(M,t,sc),t.h>0?t.h:Infinity));

@@ -53,7 +53,7 @@ const fillR=(r)=>ctx.fillRect(sx(r[0]),sy(r[3]),(r[2]-r[0])*VW.k,(r[3]-r[1])*VW.
 const strokeR=(r)=>ctx.strokeRect(sx(r[0]),sy(r[3]),(r[2]-r[0])*VW.k,(r[3]-r[1])*VW.k);
 const lineShown=c=>c==='src'?false:c==='interior'?!!LAY.fit:c==='stair'?!!LAY.stairs:true;
 function scene(){                              // the plan itself, drawn with the current view (also used by the loupe)
-  const P=M.P,G=geo(),PR=outOpt(M).style==='pres';
+  const P=M.P,G=geo(),PR=M.look==='pres';
   if(PR){
     ctx.fillStyle='#e4dad2';for(const q of G.fl)fillR(q);for(const o of M.opens)if(o.type!=='window')fillR(rectOf(M,o));
     const t=0.6/UNIT_M[M.unit];
@@ -145,7 +145,7 @@ function render(){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,Hh);hits=[];handles=[];nhits=[];
   if(!M)return;
   VW={cx:V.cx,cy:V.cy,k:V.k,ox:W/2,oy:Hh/2};
-  const BG=outOpt(M).style==='pres'?'#efeae4':'#fff';ctx.fillStyle=BG;ctx.fillRect(0,0,W,Hh);
+  const BG=M.look==='pres'?'#efeae4':'#fff';ctx.fillStyle=BG;ctx.fillRect(0,0,W,Hh);
   scene();
   const P=M.P;
   if(sel){
@@ -669,10 +669,10 @@ function openList(){
 }
 function openLayers(){
   const rows=[['walls','Walls'],['opens','Doors and windows'],['stairs','Stairs'],['fit','Interior fittings'],['furn','Furniture and symbols'],['text','Text'],['dims','Site dimensions'],['notes','Notes'],['under','Original drawing (underlay)']];
-  let h='<h3>Show</h3><label class="f" style="margin-top:0">Look of the plan</label><select id="yLook"><option value="pres">Presentation (brown walls, tiled floors)</option><option value="tech"'+(outOpt(M).style==='tech'?' selected':'')+'>Technical (black and white)</option></select>'+rows.map(r=>'<label class="lay"><input type="checkbox" data-y="'+r[0]+'"'+(LAY[r[0]]?' checked':'')+'><span>'+r[1]+'</span></label>').join('')+'<div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
+  let h='<h3>Show</h3><label class="f" style="margin-top:0">Look of the plan</label><select id="yLook"><option value="work">Standard (grey walls, coloured openings)</option><option value="pres"'+(M.look==='pres'?' selected':'')+'>Presentation (brown walls, tiled floors)</option></select>'+rows.map(r=>'<label class="lay"><input type="checkbox" data-y="'+r[0]+'"'+(LAY[r[0]]?' checked':'')+'><span>'+r[1]+'</span></label>').join('')+'<div class="row" style="margin-top:10px"><button id="yClose">Close</button></div>';
   showSheet(h,'bottom');
   sheet.querySelectorAll('[data-y]').forEach(c=>c.onchange=()=>{LAY[c.dataset.y]=c.checked?1:0;draw();});
-  $('yLook').onchange=ev=>{M.out.style=ev.target.value;autosave();draw();};
+  $('yLook').onchange=ev=>{M.look=ev.target.value;autosave();draw();};
   $('yClose').onclick=hideSheet;
 }
 function openMenu(){
